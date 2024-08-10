@@ -1,5 +1,3 @@
-I wanted to look into how one could turn a phone into something like an xbox controller. I have learned a lot and made this in the process. I might turn it into my original thought in the future. Have fun! :)
-
 Create a Virtual Environment and activate it.
 ```bash
 python -m venv venv
