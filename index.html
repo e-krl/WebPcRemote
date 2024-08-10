@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Trackpad</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #trackpadArea {
+            flex-grow: 1;
+            background-color: #f8f8f8;
+            border: 1px solid #aaa;
+        }
+        #buttonArea {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: #007BFF;
+        }
+        .button {
+            flex-grow: 1;
+            margin: 5px;
+            padding: 15px;
+            font-size: 24px;
+            color: white;
+            background-color: #007BFF;
+            border: none;
+            cursor: pointer;
+        }
+        #latency {
+            margin: 10px;
+            font-weight: bold;
+            color: #007BFF;
+        }
+        #debugConsole {
+            height: 150px;
+            overflow-y: auto;
+            background-color: #f1f1f1;
+            padding: 10px;
+            font-size: 14px;
+            border-top: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="debugConsole"></div>
+    <input id="wsAddressInput" type="text" placeholder="Enter WebSocket Address" />
+    <button id="connectButton">Connect</button>
+    <div id="trackpadArea"></div>
+    <div id="buttonArea">
+        <button id="leftClickArea" class="button">Left Click</button>
+        <!--<button id="slideArea" class="button">Slide</button>-->
+        <button id="rightClickArea" class="button">Right Click</button>
+        <!--<button id="toggleKeyboard" class="button">Toggle Keyboard</button>-->
+    </div>
+    <div id="latency">Latency: 0 ms</div>
+    <script>
+        let ws = null;
+        let requestTime = null;
+
+        const actionTypes = {
+            mouse_click_left: "0",
+            mouse_click_left_hold: "1",
+            mouse_click_middle: "2",
+            mouse_click_right: "3",
+            mouse_click_right_hold: "4",
+            mouse_roll: "5",
+            trackpad: "6",
+            keydown: "7",
+            keyup: "8"
+        };
+
+        document.getElementById('connectButton').addEventListener('click', () => {
+            const wsAddress = document.getElementById('wsAddressInput').value;
+            if (wsAddress) {
+                ws = new WebSocket(wsAddress);
+
+                ws.onopen = () => {
+                    logToConsole('Connected to the server');
+                };
+
+                ws.onmessage = (event) => {
+                    const responseTime = Date.now();
+                    if (requestTime) {
+                        const latency = responseTime - requestTime;
+                        document.getElementById('latency').textContent = `Latency: ${latency} ms`;
+                    }
+                    logToConsole('Message from server: ' + event.data);
+                };
+
+                ws.onerror = (error) => {
+                    logToConsole('WebSocket Error: ' + error);
+                };
+
+                ws.onclose = () => {
+                    logToConsole('WebSocket connection closed');
+                };
+            } else {
+                logToConsole('Please enter a WebSocket address');
+            }
+        });
+
+        function sendMessage(action, message) {
+            if (ws.readyState === WebSocket.OPEN) {
+                requestTime = Date.now();
+                d = JSON.stringify({
+                    action: action,
+                    data: message
+                });
+                logToConsole('Sending message: ' + d);
+                ws.send(d);
+            } else {
+                logToConsole('WebSocket is not open. Message not sent.');
+            }
+        }
+
+        function logToConsole(message) {
+            const consoleElement = document.getElementById('debugConsole');
+            const newMessage = document.createElement('div');
+            newMessage.textContent = message;
+            consoleElement.appendChild(newMessage);
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        }
+
+        const trackpadArea = document.getElementById('trackpadArea');
+        let trackpadStartX = 0;
+        let trackpadStartY = 0;
+        const trackpadSensitivity = 0.8;
+
+        trackpadArea.addEventListener('touchstart', (event) => {
+            const touch = event.touches[0];
+            trackpadStartX = touch.clientX;
+            trackpadStartY = touch.clientY;
+        });
+
+        trackpadArea.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            const touch = event.touches[0];
+            const deltaX = (touch.clientX - trackpadStartX) * trackpadSensitivity;
+            const deltaY = (touch.clientY - trackpadStartY) * trackpadSensitivity;
+
+            const trackpadData = {
+                deltaX: deltaX,
+                deltaY: deltaY
+            };
+
+            logToConsole(`Trackpad moved: dx=${deltaX}, dy=${deltaY}`);
+            sendMessage(actionTypes.trackpad, trackpadData);
+
+            trackpadStartX = touch.clientX;
+            trackpadStartY = touch.clientY;
+        });
+
+        trackpadArea.addEventListener('touchend', () => {
+            logToConsole('Trackpad touch ended');
+        });
+
+        document.getElementById('leftClickArea').addEventListener('touchstart', () => {
+            logToConsole('Left click area touched');
+            sendMessage(actionTypes.mouse_click_left, 1);
+        });
+
+        document.getElementById('rightClickArea').addEventListener('touchstart', () => {
+            logToConsole('Right click area touched');
+            sendMessage(actionTypes.mouse_click_right, 1);
+        });
+    </script>
+</body>
+</html>
